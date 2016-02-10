@@ -1,10 +1,10 @@
 .. image:: https://travis-ci.org/rverk/kafkaoffsetmanager.svg?branch=master
-:target: https://travis-ci.org/rverk/kafkaoffsetmanager
-:alt: Build Status
+    :target: https://travis-ci.org/rverk/kafkaoffsetmanager
+    :alt: Build Status
 
 .. image:: http://kafkaoffsetmanager.readthedocs.org/en/latest/?badge=latest
-:target: http://kafkaoffsetmanager.readthedocs.org/
-:alt: Docs
+    :target: http://kafkaoffsetmanager.readthedocs.org/
+    :alt: Docs
 
 Kafka Offset Manager
 ====================
