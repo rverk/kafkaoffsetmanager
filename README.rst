@@ -13,6 +13,7 @@ Kafka Offset Manager
 use in Spark_ streaming jobs.
 
 * `Source code <https://github.com/rverk/kafkaoffsetmanager>`_ (Github)
+* `Documentation <http://kafkaoffsetmanager.readthedocs.org/>`_ (Read the Docs)
 
 .. _Spark: http://spark.apache.org/
 
