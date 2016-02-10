@@ -1,3 +1,5 @@
+[![Docs](http://kafkaoffsetmanager.readthedocs.org/en/latest/?badge=latest)](http://kafkaoffsetmanager.readthedocs.org/)
+
 Kafka Offset Manager
 ====================
 
