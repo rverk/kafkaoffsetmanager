@@ -1,4 +1,10 @@
-[![Docs](http://kafkaoffsetmanager.readthedocs.org/en/latest/?badge=latest)](http://kafkaoffsetmanager.readthedocs.org/)
+.. image:: https://travis-ci.org/rverk/kafkaoffsetmanager.svg?branch=master
+:target: https://travis-ci.org/rverk/kafkaoffsetmanager
+:alt: Build Status
+
+.. image:: http://kafkaoffsetmanager.readthedocs.org/en/latest/?badge=latest
+:target: http://kafkaoffsetmanager.readthedocs.org/
+:alt: Docs
 
 Kafka Offset Manager
 ====================
