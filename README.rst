@@ -2,7 +2,7 @@
     :target: https://travis-ci.org/rverk/kafkaoffsetmanager
     :alt: Build Status
 
-.. image:: http://kafkaoffsetmanager.readthedocs.org/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/kafkaoffsetmanager/badge/?version=latest
     :target: http://kafkaoffsetmanager.readthedocs.org/
     :alt: Docs
 
@@ -12,7 +12,6 @@ Kafka Offset Manager
 **Kafka Offsert Manager** is a simple pluggable offset manager for 
 use in Spark_ streaming jobs.
 
-* `Documentation <http://kafkaoffsetmanager.readthedocs.org>`_ (Read the Docs)
 * `Source code <https://github.com/rverk/kafkaoffsetmanager>`_ (Github)
 
 .. _Spark: http://spark.apache.org/
