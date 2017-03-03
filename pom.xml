@@ -9,7 +9,7 @@
 
     <groupId>org.ctrl-r</groupId>
     <artifactId>kom-parent</artifactId>
-    <version>1.2.8</version>
+    <version>1.2.9-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Pluggable kafka offset manager for use in spark streaming</name>
 
