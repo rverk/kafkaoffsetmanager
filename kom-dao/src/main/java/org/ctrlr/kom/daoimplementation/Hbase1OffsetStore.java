@@ -1,5 +1,6 @@
 package org.ctrlr.kom.daoimplementation;
 
+import com.google.common.base.Joiner;
 import kafka.common.TopicAndPartition;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -14,25 +15,26 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.rmi.UnexpectedException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Hbase 1.0 Storage backend implementation for KafkaOffsetManager
- *
+ * <p/>
  * Uses Hbase 1.0 Client API implementation.
- *
+ * <p/>
  * * Create the hbase table as follows:
  * <p>
  * $ create '[table_name]', { NAME => 'd', VERSIONS => 1, COMPRESSION => 'SNAPPY'}
- *</p>
+ * </p>
  * <p>
- *     Example Usage:
- *     final Configuration hbaseConfiguration = HBaseConfiguration.create();
- *     hbaseConfiguration.addResource(new Path(str));
- *
- *     final IOffsetStore dao = new Hbase1OffsetStore.Builder()
- *              .setHbaseConfiguration(hbaseConfiguration)
- *              .setOffsetTable("offsettable").build();
+ * Example Usage:
+ * final Configuration hbaseConfiguration = HBaseConfiguration.create();
+ * hbaseConfiguration.addResource(new Path(str));
+ * <p/>
+ * final IOffsetStore dao = new Hbase1OffsetStore.Builder()
+ * .setHbaseConfiguration(hbaseConfiguration)
+ * .setOffsetTable("offsettable").build();
  * </p>
  */
 public class Hbase1OffsetStore implements IOffsetDao {
@@ -45,7 +47,8 @@ public class Hbase1OffsetStore implements IOffsetDao {
     private final byte[] colFam = "d".getBytes();
     private final byte[] colQual = "d".getBytes();
 
-    private Hbase1OffsetStore() {}
+    private Hbase1OffsetStore() {
+    }
 
     public static class Builder {
 
@@ -100,13 +103,13 @@ public class Hbase1OffsetStore implements IOffsetDao {
      */
     public Map<TopicAndPartition, Long> getOffsets(String groupid, String topic) {
 
-        Log.info("Getting hbase consumer offsets for, topic: '{}', groupid: '{}'", topic, groupid);
-
         Map<TopicAndPartition, Long> returnOffsetsMap = new HashMap<>();
+        Log.info("Getting hbase consumer offsets for, topic: '{}', groupid: '{}'", topic, groupid);
 
         try {
             Table htable = conn.getTable(TableName.valueOf(offsetTable));
-            byte[] startKey = Bytes.toBytes(groupid + SEPARATOR + topic);
+            byte[] startKey = Bytes.toBytes(Joiner.on(SEPARATOR)
+                    .join(groupid, topic, ""));
             Scan scan = new Scan(startKey);
             scan.setConsistency(Consistency.TIMELINE);
 
@@ -155,13 +158,14 @@ public class Hbase1OffsetStore implements IOffsetDao {
             BufferedMutator bm = conn.getBufferedMutator(TableName.valueOf(offsetTable));
 
             for (Map.Entry<TopicAndPartition, Long> entry : offsets.entrySet()) {
-                String key = groupid + SEPARATOR + entry.getKey().topic() + SEPARATOR + entry.getKey().partition();
+                String key = Joiner.on(SEPARATOR).join(groupid, entry.getKey().topic(), entry.getKey().partition());
 
                 Put put = new Put(key.getBytes());
                 put.addColumn(colFam, colQual, Bytes.toBytes(entry.getValue()));
                 bm.mutate(put);
             }
 
+            bm.flush();
             bm.close();
 
         } catch (IOException e) {
@@ -169,5 +173,12 @@ public class Hbase1OffsetStore implements IOffsetDao {
         }
     }
 
+    @Override
+    public void close() {
+        try {
+            Log.info("Closing dao connection.");
+            conn.close();
+        } catch (IOException ignored) {  }
+    }
 
 }

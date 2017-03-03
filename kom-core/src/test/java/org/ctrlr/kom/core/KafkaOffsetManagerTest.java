@@ -5,6 +5,9 @@ import kafka.common.TopicAndPartition;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.ctrlr.kom.dao.IOffsetDao;
 import org.ctrlr.kom.dao.StubOffsetStore;
 import org.junit.Before;
@@ -15,9 +18,12 @@ import org.slf4j.LoggerFactory;
 import scala.collection.JavaConverters;
 import scala.collection.immutable.Set;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -30,7 +36,7 @@ public class KafkaOffsetManagerTest {
     private KafkaOffsetManager validKOM;
 
     private IOffsetDao dao;
-    private String testTopicName = "testTopic";
+    private List<String> topicList = Arrays.asList("testTopic");
 
     @ClassRule
     public static KafkaJunitRule kafkaRule = new KafkaJunitRule();
@@ -44,11 +50,11 @@ public class KafkaOffsetManagerTest {
                 .setOffsetManager(dao)
                 .setKafkaBrokerList("localhost:" + kafkaRule.kafkaBrokerPort())
                 .setGroupID("testGroupID")
-                .setTopic(testTopicName).build();
+                .setTopics(topicList).build();
     }
 
     @Test
-    public void integrationTestKafkaOffsetManager() throws TimeoutException {
+    public void integrationTestKafkaOffsetManager() throws TimeoutException, ExecutionException, InterruptedException {
 
         // Need these to run in this order:
         testEmptyListOnEmptyKafkaTopic();
@@ -64,51 +70,62 @@ public class KafkaOffsetManagerTest {
         assertTrue("Return empty list, not null", validKOM.getLatestOffsets().isEmpty());
     }
 
-    private void testProduceAMessage() throws TimeoutException {
+    private void testProduceAMessage() throws TimeoutException, ExecutionException, InterruptedException {
 
-        // Produce a message so we can check new offsets.
-        ProducerConfig conf = kafkaRule.producerConfigWithStringEncoder();
-        Producer<String, String> producer = new Producer<>(conf);
-        producer.send(new KeyedMessage<>(testTopicName, "key", "value"));
-        producer.close();
+        for (String topic : topicList) {
+            // Produce a message so we can check new offsets.
+            KafkaProducer<String, String> producer = kafkaRule.createStringProducer();
+            producer.send(new ProducerRecord<>(topic, "key", "value"));
+            producer.close();
 
-        // Verify publish
-        List<String> messages = kafkaRule.readStringMessages(testTopicName, 1);
-        assertThat(messages, is(notNullValue()));
-        assertThat(messages.size(), is(1));
-        assertThat(messages.get(0), is("value"));
+            // Verify publish
+            List<ConsumerRecord<String, String>> messages = kafkaRule.pollStringMessages(topic, 1).get(5, TimeUnit.SECONDS);
+            assertThat(messages, is(notNullValue()));
+            assertThat(messages.size(), is(1));
+
+            ConsumerRecord<String, String> msg = messages.get(0);
+            assertThat(msg, is(notNullValue()));
+            assertThat(msg.value(), is("value"));
+        }
     }
 
     private void testGettingOffsets() {
 
-        Map<TopicAndPartition, Long> tap = new HashMap<>();
-        tap.put(new TopicAndPartition(testTopicName, 0), 0L);
-        assertTrue("After publish, ealiest is 0:0", validKOM.getEarliestOffsets().equals(tap));
+        for (String topic : topicList) {
 
-        Map<TopicAndPartition, Long> tap2 = new HashMap<>();
-        tap2.put(new TopicAndPartition(testTopicName, 0), 1L);
-        assertTrue("After publish, latest is 0:1", validKOM.getLatestOffsets().equals(tap2));
+            Map<TopicAndPartition, Long> tap = new HashMap<>();
+            tap.put(new TopicAndPartition(topic, 0), 0L);
+            assertTrue("After publish, ealiest is 0:0", validKOM.getEarliestOffsets().equals(tap));
+
+            Map<TopicAndPartition, Long> tap2 = new HashMap<>();
+            tap2.put(new TopicAndPartition(topic, 0), 1L);
+            assertTrue("After publish, latest is 0:1", validKOM.getLatestOffsets().equals(tap2));
+        }
     }
 
     private void testGetPartitionsForTopcic() {
 
-        Set<TopicAndPartition> test = validKOM.getPartitionsForTopcic(testTopicName);
-        assertEquals(1, test.size());
+        for (String topic : topicList) {
+            Set<TopicAndPartition> test = validKOM.getPartitionsForTopcic(topic);
+            assertEquals(1, test.size());
 
-        for (TopicAndPartition tap : JavaConverters.asJavaSetConverter(test).asJava()) {
-            assertEquals(testTopicName, tap.topic());
-            assertTrue(tap.partition() == 0);
+            for (TopicAndPartition tap : JavaConverters.asJavaSetConverter(test).asJava()) {
+                assertEquals(topic, tap.topic());
+                assertTrue(tap.partition() == 0);
+            }
         }
     }
 
     @Test
     public void testSetOffSetsOK() throws Exception {
 
-        Map<TopicAndPartition, Long> tap = new HashMap<>();
-        tap.put(new TopicAndPartition(testTopicName, 1), 1L);
-        tap.put(new TopicAndPartition(testTopicName, 2), 2L);
+        for (String topic : topicList) {
+            Map<TopicAndPartition, Long> tap = new HashMap<>();
+            tap.put(new TopicAndPartition(topic, 1), 1L);
+            tap.put(new TopicAndPartition(topic, 2), 2L);
 
-        validKOM.setOffsets(tap);
+            validKOM.setOffsets(tap);
+        }
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -127,11 +144,14 @@ public class KafkaOffsetManagerTest {
     @Test(expected = IllegalArgumentException.class)
     public void testSetOffSetsWrongMap() throws Exception {
 
-        Map<TopicAndPartition, Long> tap = new HashMap<>();
-        tap.put(new TopicAndPartition(testTopicName, 1), 1L);
-        tap.put(new TopicAndPartition(testTopicName+"1", 2), 2L);
+        for (String topic : topicList) {
+            Map<TopicAndPartition, Long> tap = new HashMap<>();
+            tap.put(new TopicAndPartition(topic, 1), 1L);
+            tap.put(new TopicAndPartition(topic + "1", 2), 2L);
 
-        validKOM.setOffsets(tap);
+            validKOM.setOffsets(tap);
+        }
     }
+
 
 }
