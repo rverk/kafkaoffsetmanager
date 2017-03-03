@@ -2,7 +2,9 @@ package org.ctrlr.kom.dao;
 
 import kafka.common.TopicAndPartition;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,6 +21,11 @@ public class StubOffsetStore implements IOffsetDao {
 
     @Override
     public void setOffsets(String groupid, Map<TopicAndPartition, Long> offsets) {
+        return;
+    }
+
+    @Override
+    public void close() throws IOException {
         return;
     }
 }

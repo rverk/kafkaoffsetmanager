@@ -20,7 +20,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -60,8 +62,8 @@ public class Hbase1OffsetStoreIntegrationTest {
             htu.createTable(Bytes.toBytes(tableName), colFam);
 
             dao = new Hbase1OffsetStore.Builder()
-                                 .setHbaseConfiguration(htu.getConfiguration())
-                                 .setOffsetTable(tableName).build();
+                    .setHbaseConfiguration(htu.getConfiguration())
+                    .setOffsetTable(tableName).build();
 
         } catch (Exception e1) {
             throw new RuntimeException(e1);
@@ -75,6 +77,7 @@ public class Hbase1OffsetStoreIntegrationTest {
             htu.shutdownMiniHBaseCluster();
             htu.shutdownMiniZKCluster();
             htu.cleanupTestDir();
+            dao.close();
             Log.info("Minicluster Shutdown complete");
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -86,10 +89,11 @@ public class Hbase1OffsetStoreIntegrationTest {
 
         assertTrue("No offsets means empty list", dao.getOffsets(testGroupID, testTopic).isEmpty());
 
+        String topic = testTopic;
         // Create TAP, Long map to test with
         Map<TopicAndPartition, Long> tap = new HashMap<>();
-        tap.put(new TopicAndPartition(testTopic, 1), 1L);
-        tap.put(new TopicAndPartition(testTopic, 2), 2L);
+        tap.put(new TopicAndPartition(topic, 1), 1L);
+        tap.put(new TopicAndPartition(topic, 2), 2L);
 
         // Let the dao write these to hbase
         dao.setOffsets(testGroupID, tap);
@@ -98,24 +102,25 @@ public class Hbase1OffsetStoreIntegrationTest {
         Connection connection = ConnectionFactory.createConnection(htu.getConfiguration());
         Table table = connection.getTable(TableName.valueOf(tableName));
 
-        final String prefix = new StringBuilder().append(testGroupID).append(SEPARATOR).append(testTopic).append(SEPARATOR).toString();
+        final String prefix = new StringBuilder().append(testGroupID).append(SEPARATOR).append(topic).append(SEPARATOR).toString();
         assertEquals(1L,
                 Bytes.toLong(
-                CellUtil.cloneValue(
-                        table.get(
-                                new Get(Bytes.toBytes(prefix + "1")))
-                                .getColumnLatestCell(colFam, colQual))));
+                        CellUtil.cloneValue(
+                                table.get(
+                                        new Get(Bytes.toBytes(prefix + "1")))
+                                        .getColumnLatestCell(colFam, colQual))));
 
         assertEquals(2L,
                 Bytes.toLong(
-                CellUtil.cloneValue(
-                        table.get(
-                                new Get(Bytes.toBytes(prefix + "2")))
-                                .getColumnLatestCell(colFam, colQual))));
-
-        assertTrue("Offsets have been persisted.",tap.equals(dao.getOffsets(testGroupID, testTopic)));
+                        CellUtil.cloneValue(
+                                table.get(
+                                        new Get(Bytes.toBytes(prefix + "2")))
+                                        .getColumnLatestCell(colFam, colQual))));
+        assertTrue("Offsets have been persisted.", tap.equals(dao.getOffsets(testGroupID, testTopic)));
         assertTrue("But not for other groupid", dao.getOffsets("nonexist", testTopic).isEmpty());
         assertTrue("And not for other topic", dao.getOffsets(testGroupID, "nonexist").isEmpty());
     }
+
+
 
 }

@@ -4,10 +4,18 @@ import com.github.charithe.kafka.KafkaJunitRule;
 import com.google.common.io.Files;
 import kafka.common.TopicAndPartition;
 import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
+import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.ctrlr.kom.core.KafkaOffsetManager;
 import org.ctrlr.kom.dao.IOffsetDao;
 import org.ctrlr.kom.testclassification.IntegrationTests;
@@ -23,10 +31,13 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -91,13 +102,14 @@ public class KafkaOffsetManagerIntegrationTest {
             htu.shutdownMiniZKCluster();
             htu.cleanupTestDir();
             Log.info("Minicluster Shutdown complete");
+            KOM.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     @Test
-    public void integrationTestKafkaOffsetManager() throws TimeoutException {
+    public void integrationTestKafkaOffsetManager() throws TimeoutException, ExecutionException, InterruptedException {
 
         testProduceAMessage();
         KOM.setOffsets(KOM.getLatestOffsets());
@@ -116,18 +128,57 @@ public class KafkaOffsetManagerIntegrationTest {
         assertTrue("Latest is 0:2", KOM.getLatestOffsets().equals(tap));
     }
 
-    private void testProduceAMessage() throws TimeoutException {
+    private void testProduceAMessage() throws TimeoutException, ExecutionException, InterruptedException {
 
         // Produce a message so we can check new offsets.
-        ProducerConfig conf = kafkaRule.producerConfigWithStringEncoder();
-        Producer<String, String> producer = new Producer<>(conf);
-        producer.send(new KeyedMessage<>(testTopicName, "key", "value"));
+        KafkaProducer<String, String> producer = kafkaRule.createStringProducer();
+        producer.send(new ProducerRecord<>(testTopicName, "key", "value"));
         producer.close();
 
         // Verify publish
-        List<String> messages = kafkaRule.readStringMessages(testTopicName, 1);
+        List<ConsumerRecord<String, String>> messages = kafkaRule.pollStringMessages(testTopicName, 1).get(5, TimeUnit.SECONDS);
         assertThat(messages, is(notNullValue()));
         assertThat(messages.size(), is(1));
-        assertThat(messages.get(0), is("value"));
+
+        ConsumerRecord<String, String> msg = messages.get(0);
+        assertThat(msg, is(notNullValue()));
+        assertThat(msg.value(), is("value"));
+    }
+
+    @Test
+    public void testNewPartitions() throws Exception {
+
+        assertTrue("No offsets means empty list", dao.getOffsets(testGroupID, testTopicName).isEmpty());
+
+        String topic = testTopicName;
+        // Create TAP, Long map to test with
+        Map<TopicAndPartition, Long> tap = new HashMap<>();
+        tap.put(new TopicAndPartition(topic, 1), 1L);
+        tap.put(new TopicAndPartition(topic, 2), 2L);
+
+        // Let the dao write these to hbase
+        dao.setOffsets(testGroupID, tap);
+
+        // Check expected table and key of the offset storage
+        Connection connection = ConnectionFactory.createConnection(htu.getConfiguration());
+        Table table = connection.getTable(TableName.valueOf(tableName));
+
+        final String prefix = new StringBuilder().append(testGroupID).append(SEPARATOR).append(topic).append(SEPARATOR).toString();
+        assertEquals(1L,
+                Bytes.toLong(
+                        CellUtil.cloneValue(
+                                table.get(
+                                        new Get(Bytes.toBytes(prefix + "1")))
+                                        .getColumnLatestCell(colFam, colQual))));
+
+        assertEquals(2L,
+                Bytes.toLong(
+                        CellUtil.cloneValue(
+                                table.get(
+                                        new Get(Bytes.toBytes(prefix + "2")))
+                                        .getColumnLatestCell(colFam, colQual))));
+        assertTrue("Offsets have been persisted.", tap.equals(dao.getOffsets(testGroupID, testTopicName)));
+        assertTrue("But not for other groupid", dao.getOffsets("nonexist", testTopicName).isEmpty());
+        assertTrue("And not for other topic", dao.getOffsets(testGroupID, "nonexist").isEmpty());
     }
 }
