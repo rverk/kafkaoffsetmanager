@@ -26,7 +26,7 @@
         <spark.version>1.6.0</spark.version>
         <hbase.version>1.2.0</hbase.version>
         <kafka.version>0.9.0.1</kafka.version>
-        <junit.version>4.11</junit.version>
+        <junit.version>4.13.1</junit.version>
         <surefire.version>2.19.1</surefire.version>
         <extra.enforcer.version>1.0-beta-4</extra.enforcer.version>
         <java.min.version>1.7</java.min.version>
