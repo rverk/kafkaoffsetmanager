@@ -21,7 +21,7 @@
     </modules>
 
     <properties>
-        <hadoop.version>3.2.4</hadoop.version>
+        <hadoop.version>3.4.0</hadoop.version>
         <cdh.version>5.8.0</cdh.version>
         <spark.version>1.6.0</spark.version>
         <hbase.version>1.2.0</hbase.version>
